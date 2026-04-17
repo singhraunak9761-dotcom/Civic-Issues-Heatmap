@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicTrace - Civic Issue Heatmap</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <!-- Tailwind CSS Config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            900: '#0c4a6e',
+                        },
+                        accent: '#F59E0B'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="text-slate-800 antialiased h-screen flex overflow-hidden">
+
+    <!-- Sidebar Navigation -->
+    <nav class="w-20 lg:w-64 bg-white border-r border-slate-200 flex flex-col justify-between h-full shadow-sm z-20">
+        <div>
+            <div class="h-16 flex items-center justify-center lg:justify-start lg:px-6 border-b border-slate-100">
+                <div class="w-8 h-8 rounded bg-primary-600 flex items-center justify-center text-white font-bold shadow-lg">
+                    <i class="fa-solid fa-layer-group"></i>
+                </div>
+                <span class="hidden lg:block ml-3 font-bold text-xl tracking-tight text-slate-800">CivicTrace</span>
+            </div>
+            
+            <ul class="mt-6 flex flex-col gap-2 px-3">
+                <li>
+                    <button onclick="switchTab('citizen')" id="nav-citizen" class="w-full flex items-center px-3 py-3 rounded-xl transition-all font-medium text-slate-500 hover:text-primary-600 hover:bg-primary-50 bg-primary-50 text-primary-600">
+                        <i class="fa-solid fa-camera w-6 text-center text-lg"></i>
+                        <span class="hidden lg:block ml-3">Report Issue</span>
+                    </button>
+                </li>
+                <li>
+                    <button onclick="switchTab('map')" id="nav-map" class="w-full flex items-center px-3 py-3 rounded-xl transition-all font-medium text-slate-500 hover:text-primary-600 hover:bg-primary-50">
+                        <i class="fa-solid fa-map-location-dot w-6 text-center text-lg"></i>
+                        <span class="hidden lg:block ml-3">Heatmap</span>
+                    </button>
+                </li>
+                <li>
+                    <button onclick="switchTab('admin')" id="nav-admin" class="w-full flex items-center px-3 py-3 rounded-xl transition-all font-medium text-slate-500 hover:text-primary-600 hover:bg-primary-50">
+                        <i class="fa-solid fa-chart-line w-6 text-center text-lg"></i>
+                        <span class="hidden lg:block ml-3">Admin Dashboard</span>
+                    </button>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="p-4 border-t border-slate-100 hidden lg:block">
+            <div class="bg-gradient-to-r from-primary-600 to-primary-500 p-4 rounded-xl text-white shadow-md relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 w-16 h-16 rounded-full bg-white opacity-10"></div>
+                <h4 class="font-bold text-sm mb-1">Hackathon MVP</h4>
+                <p class="text-xs text-primary-100 mb-3">Live Simulation Mode Active</p>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-full overflow-y-auto relative">
+        
+        <!-- 1. CITIZEN INTERFACE -->
+        <section id="tab-citizen" class="p-6 md:p-10 max-w-4xl mx-auto min-h-full transition-opacity duration-300">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-slate-900 mb-2">Report a Civic Issue</h1>
+                <p class="text-slate-500">Your report goes directly to the responsible department via smart routing.</p>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-8">
+                
+                <!-- Form Area -->
+                <div class="md:col-span-3">
+                    <form id="report-form" class="glass-panel p-6 rounded-2xl shadow-sm border border-slate-200">
+                        
+                        <!-- Image Upload (Working) -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-semibold text-slate-700 mb-2">Photo Evidence</label>
+                            <input type="file" id="image-upload" accept="image/*" class="hidden">
+                            <div id="dropzone" onclick="document.getElementById('image-upload').click()" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 transition cursor-pointer group relative overflow-hidden flex flex-col justify-center items-center min-h-[160px]">
+                                <div id="dropzone-content">
+                                    <div class="w-12 h-12 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-primary-100 transition">
+                                        <i class="fa-solid fa-cloud-arrow-up text-primary-600 text-xl"></i>
+                                    </div>
+                                    <p class="text-slate-600 font-medium">Click to upload or drag & drop</p>
+                                    <p class="text-slate-400 text-xs mt-1">SVG, PNG, JPG or GIF (max. 5MB)</p>
+                                </div>
+                                <img id="image-preview" class="absolute inset-0 w-full h-full object-cover hidden" alt="Preview">
+                                <button type="button" id="remove-image" class="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex justify-center items-center hidden hover:bg-red-600 z-10 shadow-md" onclick="event.stopPropagation(); removeImage(event);">
+                                    <i class="fa-solid fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Category -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-semibold text-slate-700 mb-2">Issue Category</label>
+                            <div class="grid grid-cols-2 gap-3" id="category-selector">
+                                <button type="button" class="category-btn border border-slate-300 rounded-lg p-3 flex flex-col items-center justify-center gap-2 hover:border-primary-500 hover:text-primary-600 transition bg-white" data-val="pothole">
+                                    <i class="fa-solid fa-road text-xl"></i>
+                                    <span class="text-sm font-medium">Pothole / Road</span>
+                                </button>
+                                <button type="button" class="category-btn border border-slate-300 rounded-lg p-3 flex flex-col items-center justify-center gap-2 hover:border-primary-500 hover:text-primary-600 transition bg-white" data-val="garbage">
+                                    <i class="fa-solid fa-trash text-xl"></i>
+                                    <span class="text-sm font-medium">Garbage / Waste</span>
+                                </button>
+                                <button type="button" class="category-btn border border-slate-300 rounded-lg p-3 flex flex-col items-center justify-center gap-2 hover:border-primary-500 hover:text-primary-600 transition bg-white" data-val="water">
+                                    <i class="fa-solid fa-droplet text-xl"></i>
+                                    <span class="text-sm font-medium">Water / Leak</span>
+                                </button>
+                                <button type="button" class="category-btn border border-slate-300 rounded-lg p-3 flex flex-col items-center justify-center gap-2 hover:border-primary-500 hover:text-primary-600 transition bg-white" data-val="light">
+                                    <i class="fa-regular fa-lightbulb text-xl"></i>
+                                    <span class="text-sm font-medium">Streetlight</span>
+                                </button>
+                            </div>
+                            <input type="hidden" id="selected-category" value="" required>
+                        </div>
+                        
+                        <!-- Location -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-semibold text-slate-700 mb-2">Location</label>
+                            <div class="relative flex items-center bg-slate-50 border border-slate-300 rounded-xl focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-primary-500 transition">
+                                <i class="fa-solid fa-location-dot absolute left-4 text-slate-400"></i>
+                                <input type="text" id="issue-location" required class="w-full pl-10 pr-12 py-3 bg-transparent outline-none" placeholder="Enter location..." value="">
+                                <button type="button" id="get-location-btn" onclick="getCurrentLocation()" class="absolute right-2 text-primary-500 hover:text-primary-700 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary-50 transition" title="Get current location">
+                                    <i class="fa-solid fa-crosshairs"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-semibold text-slate-700 mb-2">Description <span class="text-slate-400 font-normal">(Optional)</span></label>
+                            <textarea id="issue-desc" class="w-full p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition" rows="3" placeholder="Additional details to help authorities..."></textarea>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center relative overflow-hidden group">
+                            <span class="relative z-10 font-bold tracking-wide">SUBMIT ISSUE</span>
+                            <div class="absolute inset-0 bg-primary-600 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300"></div>
+                            <span class="relative z-10 ml-2 hidden group-hover:inline-block transition-all duration-300"><i class="fa-solid fa-arrow-right"></i></span>
+                        </button>
+                    </form>
+
+                    <!-- Success Message Popup (Hidden by default) -->
+                    <div id="success-message" class="hidden mt-6 bg-green-50 border border-green-200 rounded-xl p-5 flex items-start animate-fade-in shadow-sm">
+                        <div class="bg-green-100 text-green-600 rounded-full w-10 h-10 flex items-center justify-center mt-1 flex-shrink-0">
+                            <i class="fa-solid fa-check text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-green-800 font-bold">Issue Reported Successfully!</h3>
+                            <p class="text-green-700 text-sm mt-1">Ticket #<span class="font-mono bg-green-200 px-1 rounded">CT-<span id="success-id"></span></span> has been routed to the correct department.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Smart Routing Visualization Area -->
+                <div class="md:col-span-2">
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-6">
+                        <h3 class="font-bold text-slate-800 mb-4 flex items-center">
+                            <i class="fa-solid fa-microchip text-primary-500 mr-2"></i> Smart Routing
+                        </h3>
+                        
+                        <div class="text-sm text-slate-500 mb-6 pb-4 border-b border-slate-100">
+                            Our AI immediately categorizes and routes the issue to the relevant department based on input data.
+                        </div>
+
+                        <div class="space-y-4 relative">
+                            <!-- Step 1 -->
+                            <div class="department-routing-line flex items-start opacity-40 transition-opacity duration-300" id="route-step-1">
+                                <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 z-10 shadow-sm border-2 border-white">
+                                    <i class="fa-solid fa-user"></i>
+                                </div>
+                                <div class="ml-4 pt-1">
+                                    <h4 class="font-bold text-slate-700 text-sm">Validating Data</h4>
+                                    <p class="text-xs text-slate-500 mt-1">Image & location check</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Step 2 -->
+                            <div class="department-routing-line flex items-start opacity-40 transition-opacity duration-300" id="route-step-2">
+                                <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 z-10 shadow-sm border-2 border-white">
+                                    <i class="fa-solid fa-brain"></i>
+                                </div>
+                                <div class="ml-4 pt-1">
+                                    <h4 class="font-bold text-slate-700 text-sm">Classification</h4>
+                                    <p class="text-xs text-slate-500 mt-1" id="route-category-text">Awaiting input...</p>
+                                </div>
+                            </div>
+
+                            <!-- Step 3 -->
+                            <div class="department-routing-line flex items-start opacity-40 transition-opacity duration-300" id="route-step-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 z-10 shadow-sm border-2 border-white relative">
+                                    <i class="fa-solid fa-building-flag"></i>
+                                    <div class="absolute inset-0 rounded-full border-2 border-primary-500 animate-ping hidden" id="route-pulse"></div>
+                                </div>
+                                <div class="ml-4 pt-1">
+                                    <h4 class="font-bold text-slate-700 text-sm">Auto-Assigned</h4>
+                                    <p class="text-xs font-semibold text-primary-600 bg-primary-50 px-2 py-1 rounded inline-block mt-1" id="route-dept-target">Pending</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- 2. MAP / HEATMAP SECTION -->
+        <section id="tab-map" class="h-full w-full relative hidden">
+            <!-- Map Container -->
+            <div id="heatmap-container" class="absolute inset-0 z-0"></div>
+            
+            <!-- Map Overlay UI -->
+            <div class="absolute top-6 left-6 z-10 pointer-events-none">
+                <div class="pointer-events-auto glass-panel p-4 rounded-xl shadow-lg w-64">
+                    <h3 class="font-bold text-slate-800 border-b border-slate-200 pb-2 mb-3">Live Heatmap Overview</h3>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm flex items-center"><span class="w-3 h-3 rounded-full bg-red-500 mr-2 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></span> High Priority</span>
+                        <span class="text-xs font-bold text-slate-700">12%</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm flex items-center"><span class="w-3 h-3 rounded-full bg-orange-400 mr-2"></span> Medium</span>
+                        <span class="text-xs font-bold text-slate-700">34%</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm flex items-center"><span class="w-3 h-3 rounded-full bg-emerald-500 mr-2"></span> Resolved</span>
+                        <span class="text-xs font-bold text-slate-700">54%</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. ADMIN DASHBOARD -->
+        <section id="tab-admin" class="p-6 md:p-10 min-h-full bg-slate-50 hidden">
+            <header class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-900 mb-2">Authority Dashboard</h1>
+                    <p class="text-slate-500">Manage, filter, and update civic issue statuses.</p>
+                </div>
+                <!-- Filters -->
+                <div class="mt-4 md:mt-0 flex gap-3">
+                    <select id="filter-category" class="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 shadow-sm outline-none">
+                        <option value="all">All Categories</option>
+                        <option value="pothole">Roads</option>
+                        <option value="garbage">Sanitation</option>
+                        <option value="water">Water supply</option>
+                    </select>
+                    <select id="filter-status" class="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 shadow-sm outline-none">
+                        <option value="all">All Status</option>
+                        <option value="open">Open</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                    </select>
+                </div>
+            </header>
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between border-l-4 border-l-primary-500">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500">Total Reports</p>
+                        <p class="text-2xl font-bold text-slate-800" id="stat-total">0</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center text-primary-600">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between border-l-4 border-l-red-500">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500">Open</p>
+                        <p class="text-2xl font-bold text-slate-800" id="stat-open">0</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between border-l-4 border-l-orange-400">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500">In Progress</p>
+                        <p class="text-2xl font-bold text-slate-800" id="stat-progress">0</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-500">
+                        <i class="fa-solid fa-person-digging"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between border-l-4 border-l-emerald-500">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500">Resolved</p>
+                        <p class="text-2xl font-bold text-slate-800" id="stat-resolved">0</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+                        <i class="fa-solid fa-check-double"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="bg-slate-50 text-slate-800 font-semibold uppercase text-xs">
+                            <tr>
+                                <th class="px-6 py-4">ID</th>
+                                <th class="px-6 py-4">Issue Details</th>
+                                <th class="px-6 py-4">Location</th>
+                                <th class="px-6 py-4">Department</th>
+                                <th class="px-6 py-4">Status & Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="issues-table-body" class="divide-y divide-slate-100">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Empty State -->
+                <div id="table-empty-state" class="hidden py-12 text-center text-slate-500">
+                    <i class="fa-solid fa-folder-open text-4xl mb-3 text-slate-300"></i>
+                    <p>No issues found matching the criteria.</p>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
